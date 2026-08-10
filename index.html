@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>24-Point Game with A=1 (合24游戏)</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            text-align: center;
+            background-color: #f5f5f5;
+        }
+        h1 {
+            color: #2c3e50;
+        }
+        .game-container {
+            background-color: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        .numbers {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin: 20px 0;
+        }
+        .number {
+            width: 60px;
+            height: 60px;
+            background-color: #3498db;
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            font-weight: bold;
+            cursor: pointer;
+            user-select: none;
+        }
+        .expression {
+            min-height: 50px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            padding: 10px;
+            margin: 20px 0;
+            font-size: 20px;
+            background-color: #f9f9f9;
+        }
+        .buttons {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin: 15px 0;
+            flex-wrap: wrap;
+        }
+        button {
+            padding: 10px 15px;
+            font-size: 16px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        .operator {
+            background-color: #2ecc71;
+            color: white;
+        }
+        .control {
+            background-color: #e74c3c;
+            color: white;
+        }
+        .submit {
+            background-color: #9b59b6;
+            color: white;
+            font-weight: bold;
+        }
+        .toggle {
+            background-color: #f39c12;
+            color: white;
+        }
+        button:hover {
+            opacity: 0.9;
+        }
+        .message {
+            margin: 15px 0;
+            min-height: 24px;
+            font-weight: bold;
+        }
+        .success {
+            color: #27ae60;
+        }
+        .error {
+            color: #e74c3c;
+        }
+        .instructions {
+            margin-top: 20px;
+            text-align: left;
+            font-size: 14px;
+            color: #7f8c8d;
+        }
+        .settings {
+            margin: 15px 0;
+            padding: 10px;
+            background-color: #ecf0f1;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <h1>24-Point Game with A=1 (合24游戏)</h1>
+        <p>Combine the 4 numbers using +, -, ×, ÷ to make 24</p>
+        
+        <div class="settings">
+            <label>
+                <input type="checkbox" id="includeA" onchange="toggleIncludeA()"> Include A (A=1) in numbers
+            </label>
+        </div>
+        
+        <div class="numbers" id="number-container">
+            <!-- Numbers will be generated here -->
+        </div>
+        
+        <div class="expression" id="expression">
+            Start building your expression...
+        </div>
+        
+        <div class="buttons">
+            <button class="operator" onclick="appendOperator('+')">+</button>
+            <button class="operator" onclick="appendOperator('-')">-</button>
+            <button class="operator" onclick="appendOperator('×')">×</button>
+            <button class="operator" onclick="appendOperator('÷')">÷</button>
+            <button class="operator" onclick="appendOperator('(')">(</button>
+            <button class="operator" onclick="appendOperator(')')">)</button>
+            <button class="control" onclick="clearExpression()">Clear</button>
+        </div>
+        
+        <div class="buttons">
+            <button class="submit" onclick="checkSolution()">Submit</button>
+            <button class="control" onclick="newGame()">New Game</button>
+            <button class="toggle" onclick="showSolution()">Show Solution</button>
+        </div>
+        
+        <div class="message" id="message"></div>
+        
+        <div class="instructions">
+            <h3>How to play:</h3>
+            <ul>
+                <li>Use each of the four numbers exactly once (A=1 if enabled)</li>
+                <li>Combine them using +, -, ×, ÷ operations</li>
+                <li>You can use parentheses to change the operation order</li>
+                <li>The final result must equal exactly 24</li>
+                <li>When A is included, you can use either the number 1 or A in your expression</li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        let currentNumbers = [];
+        let usedNumbers = [];
+        let currentExpression = "";
+        let includeA = false;
+        let solutions = [];
+        
+        // Initialize the game
+        function initGame() {
+            currentNumbers = generateNumbers();
+            usedNumbers = [];
+            currentExpression = "Start building your expression...";
+            updateDisplay();
+            document.getElementById("message").textContent = "";
+            document.getElementById("message").className = "message";
+            
+            // Precompute solutions for this set of numbers
+            solutions = findSolutions(currentNumbers);
+        }
+        
+        // Generate 4 random numbers (1-9 or possibly A)
+        function generateNumbers() {
+            let numbers = [];
+            for (let i = 0; i < 4; i++) {
+                if (includeA && Math.random() < 0.3) { // 30% chance to generate A
+                    numbers.push('A');
+                } else {
+                    numbers.push(Math.floor(Math.random() * 9) + 1); // 1-9
+                }
+            }
+            return numbers;
+        }
+        
+        // Update the display
+        function updateDisplay() {
+            const numberContainer = document.getElementById("number-container");
+            numberContainer.innerHTML = "";
+            
+            currentNumbers.forEach((num, index) => {
+                const numberElement = document.createElement("div");
+                numberElement.className = "number";
+                numberElement.textContent = num;
+                if (usedNumbers.includes(index)) {
+                    numberElement.style.opacity = "0.5";
+                    numberElement.style.backgroundColor = "#95a5a6";
+                } else {
+                    numberElement.onclick = function() { appendNumber(num, index); };
+                }
+                numberContainer.appendChild(numberElement);
+            });
+            
+            document.getElementById("expression").textContent = currentExpression;
+        }
+        
+        // Append a number to the expression
+        function appendNumber(num, index) {
+            if (usedNumbers.includes(index)) return;
+            
+            if (currentExpression === "Start building your expression..." || 
+                currentExpression === "") {
+                currentExpression = num;
+            } else {
+                currentExpression += " " + num;
+            }
+            
+            usedNumbers.push(index);
+            updateDisplay();
+        }
+        
+        // Append an operator to the expression
+        function appendOperator(op) {
+            if (currentExpression === "Start building your expression...") {
+                currentExpression = "";
+            }
+            
+            currentExpression += " " + op;
+            updateDisplay();
+        }
+        
+        // Clear the current expression
+        function clearExpression() {
+            currentExpression = "Start building your expression...";
+            usedNumbers = [];
+            updateDisplay();
+        }
+        
+        // Check if the current solution equals 24
+        function checkSolution() {
+            // Check if all numbers are used
+            if (usedNumbers.length !== 4) {
+                showMessage("You must use all four numbers!", "error");
+                return;
+            }
+            
+            // Check for balanced parentheses
+            if (!isBalancedParentheses(currentExpression)) {
+                showMessage("Parentheses are not balanced!", "error");
+                return;
+            }
+            
+            try {
+                // Replace × and ÷ with * and / for evaluation
+                // Also replace A with 1
+                let expr = currentExpression.replace(/×/g, "*")
+                                          .replace(/÷/g, "/")
+                                          .replace(/A/g, "1");
+                let result = eval(expr);
+                
+                if (Math.abs(result - 24) < 0.0001) { // Account for floating point precision
+                    showMessage("Congratulations! You've made 24!", "success");
+                } else {
+                    showMessage(`The result is ${result}, not 24. Try again!`, "error");
+                }
+            } catch (e) {
+                showMessage("Invalid expression. Please check your input.", "error");
+            }
+        }
+        
+        // Check if parentheses are balanced
+        function isBalancedParentheses(expr) {
+            let balance = 0;
+            for (let char of expr) {
+                if (char === '(') balance++;
+                if (char === ')') balance--;
+                if (balance < 0) return false;
+            }
+            return balance === 0;
+        }
+        
+        // Show a message
+        function showMessage(msg, type) {
+            const messageElement = document.getElementById("message");
+            messageElement.textContent = msg;
+            messageElement.className = "message " + type;
+        }
+        
+        // Start a new game
+        function newGame() {
+            initGame();
+        }
+        
+        // Toggle A inclusion
+        function toggleIncludeA() {
+            includeA = document.getElementById("includeA").checked;
+            newGame();
+        }
+        
+        // Show a solution (if one exists)
+        function showSolution() {
+            if (solutions.length > 0) {
+                // Pick a random solution from the found solutions
+                const randomSolution = solutions[Math.floor(Math.random() * solutions.length)];
+                showMessage(`One possible solution: ${randomSolution}`, "success");
+            } else {
+                showMessage("No solution exists for these numbers!", "error");
+            }
+        }
+        
+        // Find all possible solutions for the current numbers
+        function findSolutions(numbers) {
+            const solutions = [];
+            const numStrings = numbers.map(n => n.toString());
+            
+            // Helper function to evaluate an expression
+            function evaluate(expr) {
+                try {
+                    const result = eval(expr.replace(/×/g, "*")
+                                           .replace(/÷/g, "/")
+                                           .replace(/A/g, "1"));
+                    return Math.abs(result - 24) < 0.0001;
+                } catch {
+                    return false;
+                }
+            }
+            
+            // Generate all permutations of the numbers
+            function permute(arr, memo = [], used = []) {
+                if (arr.length === 0) {
+                    // Try different operator combinations
+                    const ops = ['+', '-', '×', '÷'];
+                    for (let op1 of ops) {
+                        for (let op2 of ops) {
+                            for (let op3 of ops) {
+                                // Try different parenthesization
+                                const expressions = [
+                                    `(${memo[0]} ${op1} ${memo[1]}) ${op2} (${memo[2]} ${op3} ${memo[3]})`,
+                                    `((${memo[0]} ${op1} ${memo[1]}) ${op2} ${memo[2]}) ${op3} ${memo[3]}`,
+                                    `${memo[0]} ${op1} (${memo[1]} ${op2} (${memo[2]} ${op3} ${memo[3]}))`,
+                                    `${memo[0]} ${op1} ((${memo[1]} ${op2} ${memo[2]}) ${op3} ${memo[3]})`,
+                                    `${memo[0]} ${op1} ${memo[1]} ${op2} ${memo[2]} ${op3} ${memo[3]}`
+                                ];
+                                
+                                for (let expr of expressions) {
+                                    if (evaluate(expr)) {
+                                        const formattedExpr = expr.replace(/\*/g, '×').replace(/\//g, '÷');
+                                        if (!solutions.includes(formattedExpr)) {
+                                            solutions.push(formattedExpr);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    return;
+                }
+                
+                for (let i = 0; i < arr.length; i++) {
+                    if (!used[i]) {
+                        used[i] = true;
+                        permute(arr, [...memo, arr[i]], used);
+                        used[i] = false;
+                    }
+                }
+            }
+            
+            permute(numStrings);
+            return solutions;
+        }
+        
+        // Initialize the game when the page loads
+        window.onload = function() {
+            document.getElementById("includeA").checked = includeA;
+            initGame();
+        };
+    </script>
+</body>
+</html>
