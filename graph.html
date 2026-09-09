@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Graph</title>
+    <!-- Import Tailwind CSS for modern styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Import Chart.js for rendering the graph -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Import Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fira+Code:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .math-font { font-family: 'Fira Code', monospace; }
+        
+        /* Custom range slider styling */
+        input[type=range] {
+            -webkit-appearance: none;
+            width: 100%;
+            background: transparent;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 24px;
+            width: 24px;
+            border-radius: 50%;
+            background: #2563eb;
+            cursor: pointer;
+            margin-top: -10px;
+            box-shadow: 0 0 10px rgba(37, 99, 235, 0.4);
+            transition: transform 0.1s;
+        }
+        input[type=range]::-webkit-slider-thumb:active {
+            transform: scale(1.1);
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 6px;
+            cursor: pointer;
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+        input[type=range]:focus {
+            outline: none;
+        }
+    </style>
+</head>
+<body class="bg-slate-100 min-h-screen text-slate-800 flex flex-col p-4 md:p-8">
+
+    <div class="max-w-5xl w-full mx-auto bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden flex flex-col h-full">
+        
+        <!-- Header -->
+        <div class="bg-slate-800 text-white p-6 transition-colors duration-300" id="header-container">
+            <h1 class="text-2xl font-bold mb-2 flex items-center flex-wrap gap-2">
+                Graph of y = (8 - k)(x - 3)² + k² - 18k + 64 
+                <span class="bg-blue-500/20 text-blue-200 px-3 py-1 rounded-full text-lg math-font border border-blue-400/30">
+                    k = <span id="heading-k-value">0</span>
+                </span>
+            </h1>
+            <p class="text-slate-300 text-sm">Adjust the parameter to observe the shifting vertex and concavity.</p>
+        </div>
+
+        <div class="p-6 border-b border-slate-200 bg-slate-50 flex flex-col md:flex-row gap-6 items-center">
+            
+            <!-- Controls Section -->
+            <div class="flex-grow w-full md:w-auto space-y-4">
+                <div class="flex justify-between items-end mb-2">
+                    <label for="k-slider" class="font-semibold text-slate-700 text-lg">
+                        Parameter <span class="italic font-serif">k</span>
+                    </label>
+                    <div class="text-2xl font-bold math-font text-blue-600">
+                        <span id="k-value">0</span>
+                    </div>
+                </div>
+                
+                <input 
+                    type="range" 
+                    id="k-slider" 
+                    min="0" 
+                    max="100" 
+                    step="0.1" 
+                    value="0" 
+                    class="w-full"
+                >
+                <div class="flex justify-between text-xs text-slate-400 font-medium">
+                    <span>0</span>
+                    <span>25</span>
+                    <span>50</span>
+                    <span>75</span>
+                    <span>100</span>
+                </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="flex-shrink-0 flex gap-3 w-full md:w-auto justify-end">
+                <button id="increment-k" class="flex-1 md:flex-none bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-bold text-base transition-all shadow-md hover:shadow-lg active:scale-95 flex items-center justify-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
+                    Increase k by 1
+                </button>
+            </div>
+        </div>
+
+        <div class="p-4 bg-white border-b border-slate-100 flex justify-center">
+             <div class="px-4 py-2 bg-slate-100 rounded-lg text-sm text-slate-600 math-font font-medium inline-block shadow-inner border border-slate-200" id="equation-display">
+                <!-- Equation injects here -->
+             </div>
+        </div>
+
+        <div class="p-6 flex-grow relative w-full bg-white" style="min-height: 500px;">
+            <canvas id="graphCanvas"></canvas>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const kSlider = document.getElementById('k-slider');
+            const kValueDisplay = document.getElementById('k-value');
+            const headingKValue = document.getElementById('heading-k-value');
+            const equationDisplay = document.getElementById('equation-display');
+            const incrementBtn = document.getElementById('increment-k');
+            const canvas = document.getElementById('graphCanvas');
+            const ctx = canvas.getContext('2d');
+
+            // Generate the data points based on mathematical function
+            function generateData(k) {
+                const data = [];
+                // We plot a wider range of X to ensure the origin (0,0) is always visible
+                for (let x = -10; x <= 16; x += 0.2) {
+                    const y = (8 - k) * Math.pow(x - 3, 2) + Math.pow(k, 2) - 18 * k + 64;
+                    data.push({ x: x, y: y });
+                }
+                return data;
+            }
+
+            // Function to update the readable equation text dynamically
+            function updateEquationDisplay(k) {
+                const kFixed = parseFloat(k).toFixed(1);
+                // Strip unnecessary decimals if it's a whole number
+                const displayK = parseFloat(kFixed) === parseInt(kFixed) ? parseInt(kFixed) : kFixed;
+                
+                headingKValue.textContent = displayK;
+                kValueDisplay.textContent = displayK;
+
+                // Handle the 8-k term carefully for readable math
+                const term1 = parseFloat((8 - k).toFixed(2));
+                const term1Str = term1 === 1 ? "" : term1 === -1 ? "-" : term1;
+                
+                const cVal = parseFloat((Math.pow(k, 2) - 18 * k + 64).toFixed(2));
+                const cStr = cVal >= 0 ? `+ ${cVal}` : `- ${Math.abs(cVal)}`;
+
+                equationDisplay.innerHTML = `<span class="text-slate-400">f(x) =</span> ${term1Str}(x - 3)² ${cStr}`;
+            }
+
+            // Initial value setup
+            let currentK = parseFloat(kSlider.value);
+
+            const chart = new Chart(ctx, {
+                type: 'scatter',
+                data: {
+                    datasets: [{
+                        label: ' Parabola',
+                        data: generateData(currentK),
+                        borderColor: '#2563eb', // Tailwind blue-600
+                        backgroundColor: 'rgba(37, 99, 235, 0.1)',
+                        borderWidth: 3,
+                        showLine: true,
+                        pointRadius: 0, // Continuous line
+                        pointHoverRadius: 6,
+                        fill: false,
+                        tension: 0.4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: false, // For smooth slider dragging
+                    interaction: {
+                        mode: 'index',
+                        intersect: false,
+                    },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            backgroundColor: 'rgba(15, 23, 42, 0.9)',
+                            titleFont: { family: 'Fira Code', size: 13 },
+                            bodyFont: { family: 'Fira Code', size: 13 },
+                            padding: 12,
+                            cornerRadius: 8,
+                            callbacks: {
+                                label: function(context) {
+                                    return `(x: ${context.parsed.x.toFixed(2)}, y: ${context.parsed.y.toFixed(2)})`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            type: 'linear',
+                            position: 'bottom',
+                            min: -10,
+                            max: 16,
+                            grid: {
+                                // Chart.js v4 way to highlight the zero line
+                                color: (context) => {
+                                    if (context.tick.value === 0) return '#0f172a'; // Bold slate-900 for origin
+                                    return '#e2e8f0'; // Light grey for other grid lines
+                                },
+                                lineWidth: (context) => {
+                                    if (context.tick.value === 0) return 2.5; // Thicker line at x=0
+                                    return 1;
+                                }
+                            },
+                            border: {
+                                display: false // Disable the standard axis border to rely on grid lines
+                            },
+                            ticks: {
+                                font: { family: 'Fira Code', weight: '500' },
+                                color: '#475569'
+                            },
+                            title: {
+                                display: true,
+                                text: 'X Axis',
+                                font: { family: 'Inter', weight: '600', size: 14 },
+                                color: '#0f172a'
+                            }
+                        },
+                        y: {
+                            // Let Y autoscale so we don't lose the parabola as k grows
+                            grid: {
+                                color: (context) => {
+                                    if (context.tick.value === 0) return '#0f172a'; // Bold slate-900 for origin
+                                    return '#e2e8f0';
+                                },
+                                lineWidth: (context) => {
+                                    if (context.tick.value === 0) return 2.5; // Thicker line at y=0
+                                    return 1;
+                                }
+                            },
+                            border: {
+                                display: false
+                            },
+                            ticks: {
+                                font: { family: 'Fira Code', weight: '500' },
+                                color: '#475569'
+                            },
+                            title: {
+                                display: true,
+                                text: 'Y Axis',
+                                font: { family: 'Inter', weight: '600', size: 14 },
+                                color: '#0f172a'
+                            }
+                        }
+                    }
+                }
+            });
+
+            // Sync slider and chart
+            function syncUI() {
+                updateEquationDisplay(currentK);
+                chart.data.datasets[0].data = generateData(currentK);
+                chart.update();
+            }
+
+            // Slider event
+            kSlider.addEventListener('input', (e) => {
+                currentK = parseFloat(e.target.value);
+                syncUI();
+            });
+
+            // Button event
+            incrementBtn.addEventListener('click', () => {
+                let currentVal = parseFloat(kSlider.value);
+                if (currentVal < parseFloat(kSlider.max)) {
+                    // Make sure we increment cleanly without floating point weirdness
+                    currentVal = Math.min(Math.round((currentVal + 1) * 10) / 10, parseFloat(kSlider.max));
+                    kSlider.value = currentVal;
+                    currentK = currentVal;
+                    syncUI();
+                }
+            });
+
+            // Initialize UI
+            updateEquationDisplay(currentK);
+        });
+    </script>
+</body>
+</html>
